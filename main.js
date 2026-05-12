@@ -425,12 +425,12 @@
   }
 
   function isForgePixelImageUrl(pa) {
+    if (!pa || typeof pa !== 'object') return false;
+    const url = typeof pa.imageDataUrl === 'string' ? pa.imageDataUrl.trim() : '';
+    if (!url) return false;
     return (
-      pa &&
-      typeof pa === 'object' &&
-      typeof pa.imageDataUrl === 'string' &&
-      /^data:image\/(png|jpeg|webp);base64,/i.test(pa.imageDataUrl.trim()) ||
-      /^data:image\/svg\+xml/i.test(pa.imageDataUrl.trim())
+      /^data:image\/(png|jpeg|webp);base64,/i.test(url) ||
+      /^data:image\/svg\+xml/i.test(url)
     );
   }
 
