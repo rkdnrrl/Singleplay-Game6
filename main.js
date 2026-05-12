@@ -304,6 +304,8 @@
       source: buildDecomposeSource(m),
     }));
   }
+
+  function loadMaterialsFromStore() {
     try {
       const raw = localStorage.getItem(FORGE_MATERIALS_KEY);
       if (!raw) return [];
