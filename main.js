@@ -218,9 +218,8 @@
     title.textContent = compound.itemName != null ? String(compound.itemName) : '';
     const sub = document.createElement('div');
     sub.className = 'alchemy-compose-preview__sub';
-    const r = compound.rarity != null ? String(compound.rarity) : 'common';
     const coin = compound.coinValue != null ? Number(compound.coinValue) : 0;
-    sub.textContent = `${r} · ${compound.itemType || 'artifact'} · 판매 시 코인 ${coin}`;
+    sub.textContent = `${compound.itemType || 'artifact'} · 판매 시 코인 ${coin}`;
     const saved = document.createElement('div');
     saved.className = 'alchemy-compose-preview__saved';
     saved.textContent = '서버에 저장됨';
