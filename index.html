@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>연금술 — 가마솥</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <aside class="alchemy-dock" id="alchemyDock" aria-label="연금술 재료">
+    <div class="alchemy-dock__head">
+      <h2 class="alchemy-dock__title">📦 재료 <span id="matBadge" class="alchemy-dock__badge">0</span></h2>
+    </div>
+    <div class="alchemy-dock__scroll" id="materialScrollWrap">
+      <div id="materialList" class="alchemy-dock__list"></div>
+    </div>
+    <p class="alchemy-dock__hint" id="materialHint">끌어서 가마솥에 넣으세요.</p>
+  </aside>
+
+  <main class="stage" aria-label="연금술 작업대">
+    <div class="stage__inner">
+      <div
+        class="cauldron-wrap"
+        id="cauldronDropZone"
+        aria-label="가마솥에 재료 놓기"
+      >
+        <div
+          class="cauldron"
+          id="cauldron"
+          role="button"
+          tabindex="0"
+          aria-pressed="false"
+          aria-label="가마솥, 눌러서 끓이기 멈추기"
+        >
+          <div class="cauldron__steam" aria-hidden="true"></div>
+          <div class="cauldron__rim" aria-hidden="true"></div>
+          <div class="cauldron__pot" aria-hidden="true">
+            <div class="cauldron__liquid"></div>
+            <div class="cauldron__bubbles" aria-hidden="true">
+              <span></span><span></span><span></span><span></span><span></span>
+              <span></span><span></span><span></span><span></span><span></span>
+            </div>
+          </div>
+          <div class="cauldron__base" aria-hidden="true"></div>
+        </div>
+        <div id="cauldronChips" class="cauldron-chips" aria-live="polite"></div>
+      </div>
+      <button type="button" class="alchemy-clear-btn" id="btnClearPot">가마솥 비우기</button>
+      <button type="button" class="alchemy-decompose-btn" id="btnDecompose" disabled>⚗ 분해</button>
+      <section class="alchemy-result" id="decomposePanel" aria-live="polite" hidden>
+        <h3 class="alchemy-result__title">분해 결과 · 주기율표 원소</h3>
+        <p class="alchemy-result__hint" id="decomposeHint"></p>
+        <div id="decomposeElements" class="alchemy-element-grid"></div>
+      </section>
+    </div>
+  </main>
+  <script src="config.js"></script>
+  <script src="main.js" defer></script>
+</body>
+</html>
