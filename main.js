@@ -112,7 +112,8 @@
       pot.length > 0 &&
       !decomposeInFlight &&
       !composeInFlight &&
-      !hasLocalOnly;
+      !hasLocalOnly &&
+      !potHasAlchemyElement();
     btnDecompose.disabled = !can;
     if (!alpToken || !platformApi) {
       btnDecompose.title = '게임월드에서 이 게임을 열면 토큰이 붙어 분해를 호출할 수 있어요.';
@@ -120,6 +121,9 @@
       btnDecompose.title = '가마솥에 재료를 넣은 뒤 누르세요.';
     } else if (hasLocalOnly) {
       btnDecompose.title = '서버에 없는 재료만 있으면 분해할 수 없습니다. 동기화된 재료·장비·추출 원소를 넣으세요.';
+    } else if (potHasAlchemyElement()) {
+      btnDecompose.title =
+        '추출 원소가 가마솥에 있으면 분해할 수 없습니다. 원소는 모두 꺼내고 낚시 재료·장비만 넣으세요.';
     } else if (composeInFlight) {
       btnDecompose.title = '조합 처리 중에는 분해할 수 없습니다.';
     } else {
@@ -130,6 +134,11 @@
 
   function potIsElementsOnly() {
     return pot.length > 0 && pot.every((m) => m && isAlchemyElementMaterial(m));
+  }
+
+  /** 추출 원소는 분해 대상이 아님 — 가마솥에 원소 칩이 하나라도 있으면 분해 비활성 */
+  function potHasAlchemyElement() {
+    return pot.some((m) => m && isAlchemyElementMaterial(m));
   }
 
   function updateComposeButton() {
@@ -191,6 +200,7 @@
 
   async function runDecompose() {
     if (!alpToken || !platformApi || pot.length === 0 || decomposeInFlight || composeInFlight) return;
+    if (potHasAlchemyElement()) return;
     const wasBoiling = Boolean(cauldron && cauldron.classList.contains(CLASS_BOILING));
     decomposeInFlight = true;
     if (cauldron) {
