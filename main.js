@@ -31,14 +31,11 @@
   const composePanel = document.getElementById('composePanel');
   const composeHint = document.getElementById('composeHint');
   const composePreview = document.getElementById('composePreview');
-  const composeForgeOverlayEl = document.getElementById('composeForgeOverlay');
-  const composeForgeOverlayTimerEl = document.getElementById('composeForgeOverlayTimer');
   const alchemyCoinAmountEl = document.getElementById('alchemyCoinAmount');
 
   const CLASS_BOILING = 'cauldron--boiling';
   let decomposeInFlight = false;
   let composeInFlight = false;
-  let composeForgeOverlayCountdownId = 0;
   /** @type {number|null|undefined} undefined=미로딩, null=실패 */
   let serverCoinsBalance = undefined;
   /** 가마솥 안 레퍼런스 (왼쪽 보관함 + 오른쪽 추출 원소) */
@@ -289,51 +286,12 @@
     composePreview.appendChild(wrap);
   }
 
-  function stopComposeForgeOverlayTimer() {
-    if (composeForgeOverlayCountdownId) {
-      window.clearInterval(composeForgeOverlayCountdownId);
-      composeForgeOverlayCountdownId = 0;
-    }
-  }
-
-  /** 대장간 제련 오버레이와 동일: 20→0초 예상, 이후 예상시간 N초 초과 */
-  function startComposeForgeOverlayTimer() {
-    stopComposeForgeOverlayTimer();
-    if (!composeForgeOverlayTimerEl) return;
-    let countdown = 20;
-    let exceed = 0;
-    composeForgeOverlayTimerEl.textContent = `예상 시간 약 ${countdown}초`;
-    composeForgeOverlayCountdownId = window.setInterval(() => {
-      countdown -= 1;
-      if (countdown >= 0) {
-        composeForgeOverlayTimerEl.textContent = `예상 시간 약 ${countdown}초`;
-      } else {
-        exceed += 1;
-        composeForgeOverlayTimerEl.textContent = `예상시간 ${exceed}초 초과`;
-      }
-    }, 1000);
-  }
-
-  function setComposeForgeOverlay(visible) {
-    if (!composeForgeOverlayEl) return;
-    if (visible) {
-      startComposeForgeOverlayTimer();
-    } else {
-      stopComposeForgeOverlayTimer();
-    }
-    composeForgeOverlayEl.classList.toggle('forge-overlay--hidden', !visible);
-    composeForgeOverlayEl.setAttribute('aria-hidden', visible ? 'false' : 'true');
-    document.documentElement.classList.toggle('forge-scroll-lock', !!visible);
-    document.body.classList.toggle('forge-scroll-lock', !!visible);
-  }
-
   async function runCompose() {
     if (!alpToken || !platformApi || pot.length < 2 || !potIsElementsOnly() || composeInFlight || decomposeInFlight) {
       return;
     }
     composeInFlight = true;
     if (btnCompose) btnCompose.textContent = '✨ 조합 중…';
-    setComposeForgeOverlay(true);
     updateDecomposeButton();
     if (decomposePanel) decomposePanel.hidden = true;
     if (composePanel) composePanel.hidden = false;
@@ -377,7 +335,6 @@
     } catch {
       if (composeHint) composeHint.textContent = '네트워크 오류로 조합에 실패했어요.';
     } finally {
-      setComposeForgeOverlay(false);
       composeInFlight = false;
       if (btnCompose) btnCompose.textContent = '✨ 조합';
       updateDecomposeButton();
@@ -472,7 +429,8 @@
       pa &&
       typeof pa === 'object' &&
       typeof pa.imageDataUrl === 'string' &&
-      /^data:image\/(png|jpeg|webp);base64,/i.test(pa.imageDataUrl.trim())
+      /^data:image\/(png|jpeg|webp);base64,/i.test(pa.imageDataUrl.trim()) ||
+      /^data:image\/svg\+xml/i.test(pa.imageDataUrl.trim())
     );
   }
 
