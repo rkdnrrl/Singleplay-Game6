@@ -7,14 +7,24 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <aside class="alchemy-dock" id="alchemyDock" aria-label="연금술 재료">
+  <aside class="alchemy-dock" id="alchemyDock" aria-label="재료·장비·영혼 보관함">
     <div class="alchemy-dock__head">
-      <h2 class="alchemy-dock__title">📦 연금술 보관함 <span id="matBadge" class="alchemy-dock__badge">0</span></h2>
+      <h2 class="alchemy-dock__title">📦 보관함 <span id="matBadge" class="alchemy-dock__badge">0</span></h2>
     </div>
     <div class="alchemy-dock__scroll" id="materialScrollWrap">
       <div id="materialList" class="alchemy-dock__list"></div>
     </div>
-    <p class="alchemy-dock__hint" id="materialHint">끌어서 가마솥에 넣으세요.</p>
+    <p class="alchemy-dock__hint" id="materialHint">낚시·대장간에서 모은 재료, 장비, 영혼 계열이 표시됩니다.</p>
+  </aside>
+
+  <aside class="alchemy-element-dock" id="elementStashDock" aria-label="분해로 추출한 원소">
+    <div class="alchemy-element-dock__head">
+      <h2 class="alchemy-element-dock__title">🧪 추출 원소 <span id="elementStashBadge" class="alchemy-element-dock__badge">0</span></h2>
+    </div>
+    <div class="alchemy-element-dock__scroll" id="elementStashScrollWrap">
+      <div id="elementStashList" class="alchemy-element-dock__list"></div>
+    </div>
+    <p class="alchemy-element-dock__hint" id="elementStashHint">분해에 성공하면 서버에 쌓이고, 여기에 표시됩니다.</p>
   </aside>
 
   <main class="stage" aria-label="연금술 작업대">

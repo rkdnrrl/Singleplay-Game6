@@ -16,6 +16,9 @@
   const materialScrollWrap = document.getElementById('materialScrollWrap');
   const matBadge = document.getElementById('matBadge');
   const materialHint = document.getElementById('materialHint');
+  const elementStashListEl = document.getElementById('elementStashList');
+  const elementStashBadge = document.getElementById('elementStashBadge');
+  const elementStashHint = document.getElementById('elementStashHint');
   const cauldronChipsEl = document.getElementById('cauldronChips');
   const btnClearPot = document.getElementById('btnClearPot');
   const btnDecompose = document.getElementById('btnDecompose');
@@ -25,8 +28,10 @@
 
   const CLASS_BOILING = 'cauldron--boiling';
   let decomposeInFlight = false;
-  /** 가마솥 안 레퍼런스 (원본은 materials 배열과 동기) */
+  /** 가마솥 안 레퍼런스 (왼쪽 보관함 + 오른쪽 추출 원소) */
   let pot = [];
+  /** 분해로 쌓인 원소 — 서버 `/api/alchemy/stash` 기준(로컬 보관함 키와 분리) */
+  let elementStash = [];
 
   function updateDecomposeButton() {
     if (!btnDecompose) return;
@@ -113,7 +118,7 @@
           decomposeHint.textContent =
             '주기율표에 맞는 원소가 추출되지 않았어요. 다른 재료를 넣어 보세요.';
         } else {
-          decomposeHint.textContent = `입력: ${names.length}종 이름 → 원소 ${elements.length}개. 왼쪽 연금술 보관함에 저장되었습니다.`;
+          decomposeHint.textContent = `입력: ${names.length}종 이름 → 원소 ${elements.length}개. 오른쪽 추출 원소에 저장되었습니다.`;
         }
       }
       renderDecomposeElements(elements);
@@ -269,7 +274,35 @@
   let materials = [];
 
   function refreshMaterials() {
-    materials = loadMaterialsFromStore();
+    materials = loadMaterialsFromStore().filter(
+      (m) =>
+        m &&
+        m.kind !== 'alchemy_element' &&
+        !String(m.uid || '').startsWith('alchemy-el-'),
+    );
+  }
+
+  function stashPayloadToRows(stData) {
+    const els = stData && Array.isArray(stData.elements) ? stData.elements : [];
+    return els
+      .filter((e) => e && e.symbol && Number(e.count) > 0)
+      .map((e) => {
+        const sym = String(e.symbol).trim();
+        const nameKo = e.nameKo != null ? String(e.nameKo).trim() : '';
+        const display = nameKo ? `${nameKo} (${sym})` : sym;
+        const cnt = Math.max(1, Math.floor(Number(e.count)) || 1);
+        return {
+          uid: `alchemy-el-${sym}`,
+          kind: 'alchemy_element',
+          name: display,
+          rarity: 'common',
+          serverId: `alchemy-stash:${sym}`,
+          stackCount: cnt,
+          elementSymbol: sym,
+          atomicNumber: e.atomicNumber != null ? Number(e.atomicNumber) : null,
+          pixelArt: null,
+        };
+      });
   }
 
   async function syncMaterialsFromServer() {
@@ -304,7 +337,6 @@
           pixelArt: c.pixelArt || null,
         }));
 
-      let stashItems = [];
       if (stashRes.ok) {
         const stText = await stashRes.text();
         let stData = null;
@@ -315,26 +347,9 @@
             stData = null;
           }
         }
-        const els = stData && Array.isArray(stData.elements) ? stData.elements : [];
-        stashItems = els
-          .filter((e) => e && e.symbol && Number(e.count) > 0)
-          .map((e) => {
-            const sym = String(e.symbol).trim();
-            const nameKo = e.nameKo != null ? String(e.nameKo).trim() : '';
-            const display = nameKo ? `${nameKo} (${sym})` : sym;
-            const cnt = Math.max(1, Math.floor(Number(e.count)) || 1);
-            return {
-              uid: `alchemy-el-${sym}`,
-              kind: 'alchemy_element',
-              name: display,
-              rarity: 'common',
-              serverId: `alchemy-stash:${sym}`,
-              stackCount: cnt,
-              elementSymbol: sym,
-              atomicNumber: e.atomicNumber != null ? Number(e.atomicNumber) : null,
-              pixelArt: null,
-            };
-          });
+        elementStash = stashPayloadToRows(stData);
+      } else {
+        elementStash = [];
       }
 
       const current = loadMaterialsFromStore();
@@ -345,13 +360,14 @@
           x.kind !== 'alchemy_element' &&
           !String(x.uid || '').startsWith('alchemy-el-'),
       );
-      const items = serverItems.concat(stashItems).concat(localOnly);
+      const items = serverItems.concat(localOnly);
       localStorage.setItem(
         FORGE_MATERIALS_KEY,
         JSON.stringify({ v: 3, items, updatedAt: Date.now(), source: 'alchemy-direct' }),
       );
       refreshMaterials();
       renderMaterialList();
+      renderElementStashList();
       syncPotWithMaterials();
     } catch {
       /* ignore */
@@ -367,14 +383,20 @@
   function findMaterialByUid(uid) {
     const u = String(uid || '').trim();
     if (!u) return null;
-    return materials.find((m) => m && m.uid === u) || null;
+    return (
+      materials.find((m) => m && m.uid === u) || elementStash.find((m) => m && m.uid === u) || null
+    );
   }
 
   function syncPotWithMaterials() {
-    const valid = new Set(materials.map((m) => m.uid));
+    const valid = new Set([
+      ...materials.map((m) => m.uid),
+      ...elementStash.map((m) => m && m.uid).filter(Boolean),
+    ]);
     pot = pot.filter((m) => m && valid.has(m.uid));
     renderCauldronChips();
     renderMaterialList();
+    renderElementStashList();
   }
 
   function addToPotByUid(uid) {
@@ -385,6 +407,7 @@
     pot.push(m);
     renderCauldronChips();
     renderMaterialList();
+    renderElementStashList();
   }
 
   function removeFromPot(uid) {
@@ -392,12 +415,96 @@
     pot = pot.filter((p) => p.uid !== u);
     renderCauldronChips();
     renderMaterialList();
+    renderElementStashList();
   }
 
   function clearPot() {
     pot = [];
     renderCauldronChips();
     renderMaterialList();
+    renderElementStashList();
+  }
+
+  function createMaterialRow(m, inPot) {
+    const inPotSet = inPot instanceof Set ? inPot : new Set(inPot);
+    const row = document.createElement('div');
+    row.className = `alchemy-mat rarity-${rarityClass(m.rarity)}${isEquipmentMaterial(m) ? ' inv-item--equipment' : ''}${isAlchemyElementMaterial(m) ? ' alchemy-mat--element' : ''}${inPotSet.has(m.uid) ? ' alchemy-mat--in-pot' : ''}`;
+    row.dataset.uid = m.uid;
+    row.draggable = true;
+
+    const thumb = document.createElement('div');
+    thumb.className = 'alchemy-mat__thumb';
+    mountMaterialThumb(
+      thumb,
+      m.pixelArt,
+      isAlchemyElementMaterial(m) ? '🧪' : matEmoji(m.name),
+      40,
+      40,
+    );
+    row.appendChild(thumb);
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'alchemy-mat__name';
+    nameEl.textContent = m.name != null ? String(m.name) : '';
+    row.appendChild(nameEl);
+
+    const stackN =
+      isAlchemyElementMaterial(m) && m.stackCount != null ? Math.floor(Number(m.stackCount)) : 0;
+    if (isAlchemyElementMaterial(m) && stackN >= 1) {
+      const stackEl = document.createElement('span');
+      stackEl.className = 'alchemy-mat__stack';
+      stackEl.textContent = `×${stackN}`;
+      stackEl.title = `보유 ${stackN}`;
+      row.appendChild(stackEl);
+    }
+
+    row.addEventListener('dragstart', (e) => {
+      if (!e.dataTransfer) return;
+      e.dataTransfer.setData(ALCHEMY_DRAG_UID, m.uid);
+      e.dataTransfer.setData('text/plain', m.uid);
+      e.dataTransfer.effectAllowed = 'copyMove';
+      row.classList.add('alchemy-mat--dragging');
+    });
+    row.addEventListener('dragend', () => {
+      row.classList.remove('alchemy-mat--dragging');
+      clearDropHover();
+    });
+
+    const touchState = { active: false, x0: 0, y0: 0, moved: false };
+    row.addEventListener(
+      'touchstart',
+      (e) => {
+        if (e.touches.length !== 1) return;
+        const t = e.touches[0];
+        touchState.active = true;
+        touchState.x0 = t.clientX;
+        touchState.y0 = t.clientY;
+        touchState.moved = false;
+      },
+      { passive: true },
+    );
+    row.addEventListener(
+      'touchmove',
+      (e) => {
+        if (!touchState.active || e.touches.length !== 1) return;
+        const t = e.touches[0];
+        if (Math.hypot(t.clientX - touchState.x0, t.clientY - touchState.y0) > TOUCH_SLOP) touchState.moved = true;
+      },
+      { passive: true },
+    );
+    row.addEventListener('touchend', (e) => {
+      if (!touchState.active) return;
+      touchState.active = false;
+      const t = e.changedTouches[0];
+      if (!t) return;
+      if (touchState.moved) {
+        const el = document.elementFromPoint(t.clientX, t.clientY);
+        if (el && cauldronDropZone && cauldronDropZone.contains(el)) addToPotByUid(m.uid);
+      }
+      touchState.moved = false;
+    });
+
+    return row;
   }
 
   function renderMaterialList() {
@@ -407,100 +514,54 @@
 
     if (materials.length === 0) {
       materialListEl.innerHTML =
-        '<p class="alchemy-dock__hint" style="margin:0.5rem 0;text-align:center">보관함이 비어 있어요. 우주 낚시에서 잡은 뒤 동기화하거나, 토큰이 있으면 분해로 얻은 원소도 여기에 쌓입니다.</p>';
+        '<p class="alchemy-dock__hint" style="margin:0.5rem 0;text-align:center">비어 있어요. 우주 낚시·대장간에서 모은 재료, 장비, 영혼 계열이 여기 동기화됩니다.</p>';
       if (materialHint) {
         materialHint.textContent =
           alpToken && platformApi
-            ? '서버 동기화됨 · 낚시 재료와 분해로 쌓인 원소가 함께 표시됩니다.'
-            : '?token= 없으면 로컬 보관함만 표시됩니다.';
+            ? '서버와 동기화됨 · 가마솥으로 끌어 넣을 수 있어요.'
+            : '?token= 없으면 이 PC에 저장된 로컬 보관함만 보입니다.';
       }
       updateDecomposeButton();
       return;
     }
 
     if (materialHint) {
-      materialHint.textContent = '끌어서 가마솥에 넣으세요. (낚시 재료·분해 원소 · 칩 클릭으로 빼기)';
+      materialHint.textContent =
+        '재료·장비·영혼 계열 — 가마솥으로 끌어 넣으세요. (칩 클릭으로 빼기)';
     }
 
     materialListEl.innerHTML = '';
     materials.forEach((m) => {
-      const row = document.createElement('div');
-      row.className = `alchemy-mat rarity-${rarityClass(m.rarity)}${isEquipmentMaterial(m) ? ' inv-item--equipment' : ''}${isAlchemyElementMaterial(m) ? ' alchemy-mat--element' : ''}${inPot.has(m.uid) ? ' alchemy-mat--in-pot' : ''}`;
-      row.dataset.uid = m.uid;
-      row.draggable = true;
+      materialListEl.appendChild(createMaterialRow(m, inPot));
+    });
+    updateDecomposeButton();
+  }
 
-      const thumb = document.createElement('div');
-      thumb.className = 'alchemy-mat__thumb';
-      mountMaterialThumb(
-        thumb,
-        m.pixelArt,
-        isAlchemyElementMaterial(m) ? '🧪' : matEmoji(m.name),
-        40,
-        40,
-      );
-      row.appendChild(thumb);
+  function renderElementStashList() {
+    if (!elementStashListEl) return;
+    const inPot = new Set(pot.map((p) => p.uid));
+    if (elementStashBadge) elementStashBadge.textContent = String(elementStash.length);
 
-      const nameEl = document.createElement('span');
-      nameEl.className = 'alchemy-mat__name';
-      nameEl.textContent = m.name != null ? String(m.name) : '';
-      row.appendChild(nameEl);
-
-      const stackN = isAlchemyElementMaterial(m) && m.stackCount != null ? Math.floor(Number(m.stackCount)) : 0;
-      if (isAlchemyElementMaterial(m) && stackN >= 1) {
-        const stackEl = document.createElement('span');
-        stackEl.className = 'alchemy-mat__stack';
-        stackEl.textContent = `×${stackN}`;
-        stackEl.title = `보유 ${stackN}`;
-        row.appendChild(stackEl);
+    if (elementStash.length === 0) {
+      elementStashListEl.innerHTML =
+        '<p class="alchemy-element-dock__hint" style="margin:0.5rem 0;text-align:center">아직 없어요. 가마솥에 재료를 넣고 분해하면 주기율표 원소가 쌓입니다.</p>';
+      if (elementStashHint) {
+        elementStashHint.textContent =
+          alpToken && platformApi
+            ? '서버 연동 · 조합(예정)에 쓸 추출물입니다.'
+            : '게임월드에서 열면 서버에 저장·동기화됩니다.';
       }
+      updateDecomposeButton();
+      return;
+    }
 
-      row.addEventListener('dragstart', (e) => {
-        if (!e.dataTransfer) return;
-        e.dataTransfer.setData(ALCHEMY_DRAG_UID, m.uid);
-        e.dataTransfer.setData('text/plain', m.uid);
-        e.dataTransfer.effectAllowed = 'copyMove';
-        row.classList.add('alchemy-mat--dragging');
-      });
-      row.addEventListener('dragend', () => {
-        row.classList.remove('alchemy-mat--dragging');
-        clearDropHover();
-      });
+    if (elementStashHint) {
+      elementStashHint.textContent = '가마솥에 다시 넣어 재분해·조합(예정)에 활용할 수 있어요.';
+    }
 
-      const touchState = { active: false, x0: 0, y0: 0, moved: false };
-      row.addEventListener(
-        'touchstart',
-        (e) => {
-          if (e.touches.length !== 1) return;
-          const t = e.touches[0];
-          touchState.active = true;
-          touchState.x0 = t.clientX;
-          touchState.y0 = t.clientY;
-          touchState.moved = false;
-        },
-        { passive: true },
-      );
-      row.addEventListener(
-        'touchmove',
-        (e) => {
-          if (!touchState.active || e.touches.length !== 1) return;
-          const t = e.touches[0];
-          if (Math.hypot(t.clientX - touchState.x0, t.clientY - touchState.y0) > TOUCH_SLOP) touchState.moved = true;
-        },
-        { passive: true },
-      );
-      row.addEventListener('touchend', (e) => {
-        if (!touchState.active) return;
-        touchState.active = false;
-        const t = e.changedTouches[0];
-        if (!t) return;
-        if (touchState.moved) {
-          const el = document.elementFromPoint(t.clientX, t.clientY);
-          if (el && cauldronDropZone && cauldronDropZone.contains(el)) addToPotByUid(m.uid);
-        }
-        touchState.moved = false;
-      });
-
-      materialListEl.appendChild(row);
+    elementStashListEl.innerHTML = '';
+    elementStash.forEach((m) => {
+      elementStashListEl.appendChild(createMaterialRow(m, inPot));
     });
     updateDecomposeButton();
   }
@@ -619,6 +680,7 @@
   wireCauldronDropZone();
   refreshMaterials();
   renderMaterialList();
+  renderElementStashList();
   renderCauldronChips();
   syncAriaBoiling();
   updateDecomposeButton();
