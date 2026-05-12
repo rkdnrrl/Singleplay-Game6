@@ -8,7 +8,9 @@
 
   const urlParams = new URLSearchParams(window.location.search);
   const alpToken = urlParams.get('token');
-  const platformApi = window.__ALP_PLATFORM_API__ || '';
+  const platformApi =
+    String(urlParams.get('platformApi') || '').trim() ||
+    String(window.__ALP_PLATFORM_API__ || '').trim();
 
   const cauldron = document.getElementById('cauldron');
   const cauldronDropZone = document.getElementById('cauldronDropZone');
