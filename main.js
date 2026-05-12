@@ -223,6 +223,14 @@
   async function runDecompose() {
     if (!alpToken || !platformApi || pot.length === 0 || decomposeInFlight || composeInFlight) return;
     if (potHasAlchemyElement()) return;
+    if (potHasComposeVaporRisk()) {
+      const ok = window.confirm(
+        '조합으로 만든 산출물(이름에 「···」와 (원소) 표기가 붙은 아이템)이 가마솥에 있습니다.\n\n' +
+          '분해하면 원소가 확률적으로 증발해, 일부 또는 전부가 추출 원소로 쌓이지 않을 수 있습니다. 그래도 재료는 소모됩니다.\n\n' +
+          '계속하시겠습니까?',
+      );
+      if (!ok) return;
+    }
     const wasBoiling = Boolean(cauldron && cauldron.classList.contains(CLASS_BOILING));
     decomposeInFlight = true;
     if (cauldron) {
