@@ -1,6 +1,6 @@
 const express = require('express');
 
-const PLATFORM_API_URL = process.env.PLATFORM_API_URL || 'http://127.0.0.1:4000';
+const PLATFORM_API_URL = process.env.PLATFORM_API_URL || 'http://43.203.215.179:4000';
 const PORT = Number(process.env.PORT) || 3008;
 
 const app = express();
