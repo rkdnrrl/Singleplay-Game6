@@ -249,6 +249,11 @@ body {
   line-height: 1.2;
 }
 
+.alchemy-mat__stack--in-pot-all {
+  color: rgba(165, 243, 252, 0.55);
+  border-color: rgba(56, 189, 248, 0.2);
+}
+
 .alchemy-mat--element {
   border-left-color: #22d3ee;
 }

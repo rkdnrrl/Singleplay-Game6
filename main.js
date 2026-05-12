@@ -35,15 +35,30 @@
 
   function updateDecomposeButton() {
     if (!btnDecompose) return;
+    const hasLocalOnly = pot.some((m) => {
+      if (!m) return true;
+      if (m.kind === 'alchemy_element') return false;
+      if (m.kind === 'equipment' || m.equipmentId != null) {
+        return !(m.equipmentId != null && String(m.equipmentId).trim() !== '');
+      }
+      const sid = m.serverId != null ? String(m.serverId).trim() : '';
+      if (sid && !sid.startsWith('alchemy-stash')) return false;
+      return true;
+    });
     const can =
-      Boolean(alpToken && platformApi) && pot.length > 0 && !decomposeInFlight;
+      Boolean(alpToken && platformApi) &&
+      pot.length > 0 &&
+      !decomposeInFlight &&
+      !hasLocalOnly;
     btnDecompose.disabled = !can;
     if (!alpToken || !platformApi) {
       btnDecompose.title = '게임월드에서 이 게임을 열면 토큰이 붙어 분해를 호출할 수 있어요.';
     } else if (pot.length === 0) {
       btnDecompose.title = '가마솥에 재료를 넣은 뒤 누르세요.';
+    } else if (hasLocalOnly) {
+      btnDecompose.title = '서버에 없는 재료만 있으면 분해할 수 없습니다. 동기화된 재료·장비·추출 원소를 넣으세요.';
     } else {
-      btnDecompose.title = 'AI가 재료 이름을 분석해 주기율표 원소를 제안합니다.';
+      btnDecompose.title = 'AI가 재료 이름을 분석해 주기율표 원소를 제안하고, 서버에서 재료를 소모합니다.';
     }
   }
 
@@ -88,7 +103,7 @@
     if (decomposeHint) decomposeHint.textContent = 'AI가 재료 이름을 분석하는 중…';
     renderDecomposeElements([]);
 
-    const names = pot.map((m) => String(m.name != null ? m.name : '').trim()).filter(Boolean);
+    const slots = buildDecomposeSlotsFromPot();
     try {
       const res = await fetch(`${platformApi}/api/alchemy/decompose`, {
         method: 'POST',
@@ -96,7 +111,7 @@
           'Content-Type': 'application/json',
           Authorization: `Bearer ${alpToken}`,
         },
-        body: JSON.stringify({ names }),
+        body: JSON.stringify({ slots }),
       });
       const text = await res.text();
       let data = null;
@@ -113,6 +128,7 @@
         return;
       }
       const elements = data && Array.isArray(data.elements) ? data.elements : [];
+      const names = slots.map((s) => s.name).filter(Boolean);
       if (decomposeHint) {
         if (elements.length === 0) {
           decomposeHint.textContent =
@@ -122,7 +138,10 @@
         }
       }
       renderDecomposeElements(elements);
-      if (elements.length > 0) await syncMaterialsFromServer();
+      if (elements.length > 0) {
+        clearPot();
+        await syncMaterialsFromServer();
+      }
     } catch {
       if (decomposeHint) decomposeHint.textContent = '네트워크 오류로 분해에 실패했어요.';
     } finally {
@@ -259,7 +278,32 @@
     return Boolean(m && m.kind === 'alchemy_element');
   }
 
-  function loadMaterialsFromStore() {
+  function buildDecomposeSource(m) {
+    if (!m) return { kind: 'local' };
+    if (isAlchemyElementMaterial(m)) {
+      const sym = m.elementSymbol != null ? String(m.elementSymbol).trim() : '';
+      const qty = Math.max(1, Math.floor(Number(m.stackCount)) || 1);
+      return { kind: 'alchemy_element', symbol: sym, qty };
+    }
+    if (isEquipmentMaterial(m) && m.equipmentId != null && String(m.equipmentId).trim() !== '') {
+      return { kind: 'equipment', id: String(m.equipmentId).trim() };
+    }
+    const sid = m.serverId != null ? String(m.serverId).trim() : '';
+    if (sid && !sid.startsWith('alchemy-stash')) {
+      return { kind: 'catch', id: sid };
+    }
+    return { kind: 'local' };
+  }
+
+  function buildDecomposeSlotsFromPot() {
+    return pot.map((m) => ({
+      name: String(m.name != null ? m.name : '')
+        .trim()
+        .replace(/\s+/g, ' ')
+        .slice(0, 120),
+      source: buildDecomposeSource(m),
+    }));
+  }
     try {
       const raw = localStorage.getItem(FORGE_MATERIALS_KEY);
       if (!raw) return [];
@@ -448,13 +492,21 @@
     nameEl.textContent = m.name != null ? String(m.name) : '';
     row.appendChild(nameEl);
 
-    const stackN =
-      isAlchemyElementMaterial(m) && m.stackCount != null ? Math.floor(Number(m.stackCount)) : 0;
-    if (isAlchemyElementMaterial(m) && stackN >= 1) {
+    if (isAlchemyElementMaterial(m)) {
+      const totalStack =
+        m.stackCount != null ? Math.max(1, Math.floor(Number(m.stackCount))) : 1;
+      const inPotForUid = pot.filter((p) => p && p.uid === m.uid).length;
+      const displayStack = Math.max(0, totalStack - inPotForUid);
       const stackEl = document.createElement('span');
       stackEl.className = 'alchemy-mat__stack';
-      stackEl.textContent = `×${stackN}`;
-      stackEl.title = `보유 ${stackN}`;
+      if (displayStack === 0 && inPotForUid > 0) {
+        stackEl.classList.add('alchemy-mat__stack--in-pot-all');
+      }
+      stackEl.textContent = `×${displayStack}`;
+      stackEl.title =
+        inPotForUid > 0
+          ? `보유 ${totalStack} · 가마솥에 ${inPotForUid} · 남은 수량 ${displayStack}`
+          : `보유 ${totalStack}`;
       row.appendChild(stackEl);
     }
 
@@ -537,10 +589,22 @@
     updateDecomposeButton();
   }
 
+  function elementStashRemainingQtySum() {
+    let sum = 0;
+    elementStash.forEach((m) => {
+      if (!isAlchemyElementMaterial(m)) return;
+      const totalStack =
+        m.stackCount != null ? Math.max(1, Math.floor(Number(m.stackCount))) : 1;
+      const inPotForUid = pot.filter((p) => p && p.uid === m.uid).length;
+      sum += Math.max(0, totalStack - inPotForUid);
+    });
+    return sum;
+  }
+
   function renderElementStashList() {
     if (!elementStashListEl) return;
     const inPot = new Set(pot.map((p) => p.uid));
-    if (elementStashBadge) elementStashBadge.textContent = String(elementStash.length);
+    if (elementStashBadge) elementStashBadge.textContent = String(elementStashRemainingQtySum());
 
     if (elementStash.length === 0) {
       elementStashListEl.innerHTML =
