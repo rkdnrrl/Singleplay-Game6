@@ -453,6 +453,28 @@
     return Boolean(m && m.kind === 'alchemy_element');
   }
 
+  /** 가마솥에 들어간 동일 기호 원소 칩 수 (추출 원소는 여러 칩 가능) */
+  function inPotElementCountForSymbol(potArr, sym) {
+    const s = String(sym || '').trim();
+    if (!s) return 0;
+    let n = 0;
+    for (const p of potArr || []) {
+      if (p && isAlchemyElementMaterial(p) && String(p.elementSymbol || '').trim() === s) n += 1;
+    }
+    return n;
+  }
+
+  /** 목록 행이 가마솥에 일부라도 들어갔는지 (원소는 기호 기준) */
+  function materialIsInPot(m, potArr) {
+    if (!m || !Array.isArray(potArr)) return false;
+    if (potArr.some((p) => p && p.uid === m.uid)) return true;
+    if (isAlchemyElementMaterial(m)) {
+      const sym = String(m.elementSymbol || '').trim();
+      return sym && inPotElementCountForSymbol(potArr, sym) > 0;
+    }
+    return false;
+  }
+
   function buildDecomposeSource(m) {
     if (!m) return { kind: 'local' };
     if (isAlchemyElementMaterial(m)) {
@@ -610,11 +632,15 @@
   }
 
   function syncPotWithMaterials() {
-    const valid = new Set([
-      ...materials.map((m) => m.uid),
-      ...elementStash.map((m) => m && m.uid).filter(Boolean),
-    ]);
-    pot = pot.filter((m) => m && valid.has(m.uid));
+    const matIds = new Set(materials.map((m) => m.uid));
+    const stashIds = new Set(elementStash.map((m) => m && m.uid).filter(Boolean));
+    pot = pot.filter((p) => {
+      if (!p || !p.uid) return false;
+      if (matIds.has(p.uid)) return true;
+      if (stashIds.has(p.uid)) return true;
+      if (isAlchemyElementMaterial(p) && p.stashRowUid && stashIds.has(p.stashRowUid)) return true;
+      return false;
+    });
     renderCauldronChips();
     renderMaterialList();
     renderElementStashList();
@@ -623,9 +649,25 @@
   function addToPotByUid(uid) {
     const m = findMaterialByUid(uid);
     if (!m) return;
-    if (pot.some((p) => p.uid === m.uid)) return;
     if (pot.length >= MAX_POT_ITEMS) return;
-    pot.push(m);
+
+    if (isAlchemyElementMaterial(m)) {
+      const totalStack = m.stackCount != null ? Math.max(1, Math.floor(Number(m.stackCount))) : 1;
+      const sym = String(m.elementSymbol || '').trim();
+      if (!sym) return;
+      const inPotSym = inPotElementCountForSymbol(pot, sym);
+      if (inPotSym >= totalStack) return;
+      const clone = {
+        ...m,
+        uid: `alchemy-pot-${sym}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`,
+        stackCount: 1,
+        stashRowUid: m.uid,
+      };
+      pot.push(clone);
+    } else {
+      if (pot.some((p) => p.uid === m.uid)) return;
+      pot.push(m);
+    }
     renderCauldronChips();
     renderMaterialList();
     renderElementStashList();
@@ -646,10 +688,10 @@
     renderElementStashList();
   }
 
-  function createMaterialRow(m, inPot) {
-    const inPotSet = inPot instanceof Set ? inPot : new Set(inPot);
+  function createMaterialRow(m, potArr) {
+    const inPot = materialIsInPot(m, potArr);
     const row = document.createElement('div');
-    row.className = `alchemy-mat rarity-${rarityClass(m.rarity)}${isEquipmentMaterial(m) ? ' inv-item--equipment' : ''}${isAlchemyElementMaterial(m) ? ' alchemy-mat--element' : ''}${inPotSet.has(m.uid) ? ' alchemy-mat--in-pot' : ''}`;
+    row.className = `alchemy-mat rarity-${rarityClass(m.rarity)}${isEquipmentMaterial(m) ? ' inv-item--equipment' : ''}${isAlchemyElementMaterial(m) ? ' alchemy-mat--element' : ''}${inPot ? ' alchemy-mat--in-pot' : ''}`;
     row.dataset.uid = m.uid;
     row.draggable = true;
 
@@ -672,17 +714,18 @@
     if (isAlchemyElementMaterial(m)) {
       const totalStack =
         m.stackCount != null ? Math.max(1, Math.floor(Number(m.stackCount))) : 1;
-      const inPotForUid = pot.filter((p) => p && p.uid === m.uid).length;
-      const displayStack = Math.max(0, totalStack - inPotForUid);
+      const sym = String(m.elementSymbol || '').trim();
+      const inPotForSym = inPotElementCountForSymbol(potArr, sym);
+      const displayStack = Math.max(0, totalStack - inPotForSym);
       const stackEl = document.createElement('span');
       stackEl.className = 'alchemy-mat__stack';
-      if (displayStack === 0 && inPotForUid > 0) {
+      if (displayStack === 0 && inPotForSym > 0) {
         stackEl.classList.add('alchemy-mat__stack--in-pot-all');
       }
       stackEl.textContent = `×${displayStack}`;
       stackEl.title =
-        inPotForUid > 0
-          ? `보유 ${totalStack} · 가마솥에 ${inPotForUid} · 남은 수량 ${displayStack}`
+        inPotForSym > 0
+          ? `보유 ${totalStack} · 가마솥에 ${inPotForSym} · 남은 수량 ${displayStack}`
           : `보유 ${totalStack}`;
       row.appendChild(stackEl);
     }
@@ -738,7 +781,6 @@
 
   function renderMaterialList() {
     if (!materialListEl) return;
-    const inPot = new Set(pot.map((p) => p.uid));
     if (matBadge) matBadge.textContent = String(materials.length);
 
     if (materials.length === 0) {
@@ -761,7 +803,7 @@
 
     materialListEl.innerHTML = '';
     materials.forEach((m) => {
-      materialListEl.appendChild(createMaterialRow(m, inPot));
+      materialListEl.appendChild(createMaterialRow(m, pot));
     });
     updateDecomposeButton();
   }
@@ -772,15 +814,15 @@
       if (!isAlchemyElementMaterial(m)) return;
       const totalStack =
         m.stackCount != null ? Math.max(1, Math.floor(Number(m.stackCount))) : 1;
-      const inPotForUid = pot.filter((p) => p && p.uid === m.uid).length;
-      sum += Math.max(0, totalStack - inPotForUid);
+      const sym = String(m.elementSymbol || '').trim();
+      const inPotForSym = inPotElementCountForSymbol(pot, sym);
+      sum += Math.max(0, totalStack - inPotForSym);
     });
     return sum;
   }
 
   function renderElementStashList() {
     if (!elementStashListEl) return;
-    const inPot = new Set(pot.map((p) => p.uid));
     if (elementStashBadge) elementStashBadge.textContent = String(elementStashRemainingQtySum());
 
     if (elementStash.length === 0) {
@@ -802,7 +844,7 @@
 
     elementStashListEl.innerHTML = '';
     elementStash.forEach((m) => {
-      elementStashListEl.appendChild(createMaterialRow(m, inPot));
+      elementStashListEl.appendChild(createMaterialRow(m, pot));
     });
     updateDecomposeButton();
   }
