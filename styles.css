@@ -819,3 +819,159 @@ body {
     padding-bottom: 1.25rem;
   }
 }
+
+/* ── 조합 대기 오버레이 (Singleplay-Game5 대장간과 동일 톤) ───────────────── */
+:root {
+  --forge-accent: #ff6d00;
+}
+
+html.forge-scroll-lock,
+body.forge-scroll-lock {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.forge-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  background: rgba(4, 6, 18, 0.72);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  transition: opacity 0.22s ease, visibility 0.22s ease;
+}
+
+.forge-overlay--hidden {
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.forge-overlay-card {
+  max-width: 18rem;
+  text-align: center;
+  padding: 1.15rem 1.25rem 1.05rem;
+  border-radius: 1rem;
+  background: rgba(20, 24, 48, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.forge-overlay-anvil {
+  position: relative;
+  height: 3.25rem;
+  margin-bottom: 0.35rem;
+}
+
+.forge-hammer {
+  display: inline-block;
+  font-size: 2.1rem;
+  line-height: 1;
+  transform-origin: 30% 90%;
+  animation: forge-hammer-strike 1.1s ease-in-out infinite;
+}
+
+.forge-spark {
+  position: absolute;
+  left: 50%;
+  top: 0.1rem;
+  margin-left: 0.85rem;
+  font-size: 1rem;
+  opacity: 0.85;
+  animation: forge-spark-pop 1.1s ease-in-out infinite;
+}
+
+@keyframes forge-hammer-strike {
+  0%,
+  100% {
+    transform: rotate(-18deg) translateY(0);
+  }
+  45% {
+    transform: rotate(8deg) translateY(4px);
+  }
+  55% {
+    transform: rotate(12deg) translateY(6px);
+  }
+}
+
+@keyframes forge-spark-pop {
+  0%,
+  100% {
+    transform: scale(0.6);
+    opacity: 0.2;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+}
+
+.forge-overlay-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--forge-accent);
+  margin-bottom: 0.35rem;
+}
+
+.forge-overlay-timer {
+  font-size: 0.95rem;
+  color: rgba(232, 234, 246, 0.88);
+  line-height: 1.4;
+  margin-bottom: 0.65rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.forge-progress-dots {
+  display: flex;
+  gap: 0.35rem;
+  justify-content: center;
+}
+
+.forge-progress-dots span {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: rgba(255, 109, 0, 0.35);
+  animation: forge-dot-wave 1.05s ease-in-out infinite;
+}
+
+.forge-progress-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.forge-progress-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes forge-dot-wave {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translateY(-5px);
+    opacity: 1;
+  }
+}
+
+.alchemy-compose-preview__thumb .forge-raster-thumb,
+.alchemy-compose-preview__thumb img {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.alchemy-compose-preview__saved {
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  color: rgba(196, 181, 253, 0.95);
+  letter-spacing: 0.02em;
+}

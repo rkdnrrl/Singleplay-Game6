@@ -29,10 +29,13 @@
   const composePanel = document.getElementById('composePanel');
   const composeHint = document.getElementById('composeHint');
   const composePreview = document.getElementById('composePreview');
+  const composeForgeOverlayEl = document.getElementById('composeForgeOverlay');
+  const composeForgeOverlayTimerEl = document.getElementById('composeForgeOverlayTimer');
 
   const CLASS_BOILING = 'cauldron--boiling';
   let decomposeInFlight = false;
   let composeInFlight = false;
+  let composeForgeOverlayCountdownId = 0;
   /** 가마솥 안 레퍼런스 (왼쪽 보관함 + 오른쪽 추출 원소) */
   let pot = [];
   /** 분해로 쌓인 원소 — 서버 `/api/alchemy/stash` 기준(로컬 보관함 키와 분리) */
@@ -218,11 +221,53 @@
     const r = compound.rarity != null ? String(compound.rarity) : 'common';
     const coin = compound.coinValue != null ? Number(compound.coinValue) : 0;
     sub.textContent = `${r} · ${compound.itemType || 'artifact'} · 판매 시 코인 ${coin}`;
+    const saved = document.createElement('div');
+    saved.className = 'alchemy-compose-preview__saved';
+    saved.textContent = '서버에 저장됨';
     text.appendChild(title);
     text.appendChild(sub);
+    text.appendChild(saved);
     wrap.appendChild(th);
     wrap.appendChild(text);
     composePreview.appendChild(wrap);
+  }
+
+  function stopComposeForgeOverlayTimer() {
+    if (composeForgeOverlayCountdownId) {
+      window.clearInterval(composeForgeOverlayCountdownId);
+      composeForgeOverlayCountdownId = 0;
+    }
+  }
+
+  /** 대장간 제련 오버레이와 동일: 20→0초 예상, 이후 예상시간 N초 초과 */
+  function startComposeForgeOverlayTimer() {
+    stopComposeForgeOverlayTimer();
+    if (!composeForgeOverlayTimerEl) return;
+    let countdown = 20;
+    let exceed = 0;
+    composeForgeOverlayTimerEl.textContent = `예상 시간 약 ${countdown}초`;
+    composeForgeOverlayCountdownId = window.setInterval(() => {
+      countdown -= 1;
+      if (countdown >= 0) {
+        composeForgeOverlayTimerEl.textContent = `예상 시간 약 ${countdown}초`;
+      } else {
+        exceed += 1;
+        composeForgeOverlayTimerEl.textContent = `예상시간 ${exceed}초 초과`;
+      }
+    }, 1000);
+  }
+
+  function setComposeForgeOverlay(visible) {
+    if (!composeForgeOverlayEl) return;
+    if (visible) {
+      startComposeForgeOverlayTimer();
+    } else {
+      stopComposeForgeOverlayTimer();
+    }
+    composeForgeOverlayEl.classList.toggle('forge-overlay--hidden', !visible);
+    composeForgeOverlayEl.setAttribute('aria-hidden', visible ? 'false' : 'true');
+    document.documentElement.classList.toggle('forge-scroll-lock', !!visible);
+    document.body.classList.toggle('forge-scroll-lock', !!visible);
   }
 
   async function runCompose() {
@@ -230,6 +275,8 @@
       return;
     }
     composeInFlight = true;
+    if (btnCompose) btnCompose.textContent = '✨ 조합 중…';
+    setComposeForgeOverlay(true);
     updateDecomposeButton();
     if (decomposePanel) decomposePanel.hidden = true;
     if (composePanel) composePanel.hidden = false;
@@ -273,7 +320,9 @@
     } catch {
       if (composeHint) composeHint.textContent = '네트워크 오류로 조합에 실패했어요.';
     } finally {
+      setComposeForgeOverlay(false);
       composeInFlight = false;
+      if (btnCompose) btnCompose.textContent = '✨ 조합';
       updateDecomposeButton();
     }
   }
@@ -377,7 +426,7 @@
       const im = document.createElement('img');
       im.src = pixelArtVal.imageDataUrl.trim();
       im.alt = '';
-      im.decoding = 'async';
+      im.className = 'forge-raster-thumb';
       im.loading = 'lazy';
       im.draggable = false;
       im.width = cssW || 40;
