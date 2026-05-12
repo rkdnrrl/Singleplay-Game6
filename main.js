@@ -240,19 +240,30 @@
       }
       const elements = data && Array.isArray(data.elements) ? data.elements : [];
       const names = slots.map((s) => s.name).filter(Boolean);
+      const sub = data && data.meta && Array.isArray(data.meta.composeSublimate) ? data.meta.composeSublimate : [];
+      const anyTotal = sub.some((e) => e && e.kind === 'total');
+      const anyPartial = sub.some((e) => e && e.kind === 'partial' && Number(e.lost) > 0);
       if (decomposeHint) {
         if (elements.length === 0) {
-          decomposeHint.textContent =
-            '주기율표에 맞는 원소가 추출되지 않았어요. 다른 재료를 넣어 보세요.';
+          if (anyTotal) {
+            decomposeHint.textContent =
+              '조합 산출물이 증발해 원소가 전혀 남지 않았어요. 가마솥 재료는 이미 소모되었습니다.';
+          } else if (anyPartial) {
+            decomposeHint.textContent =
+              '증발로 원소가 전혀 남지 않았어요. 가마솥 재료는 이미 소모되었습니다.';
+          } else {
+            decomposeHint.textContent =
+              '주기율표에 맞는 원소가 추출되지 않았어요. 다른 재료를 넣어 보세요.';
+          }
         } else {
-          decomposeHint.textContent = `입력: ${names.length}종 이름 → 원소 ${elements.length}개. 오른쪽 추출 원소에 저장되었습니다.`;
+          let tail = '';
+          if (anyTotal || anyPartial) tail = ' (일부 조합 산출분이 증발했습니다.)';
+          decomposeHint.textContent = `입력: ${names.length}종 이름 → 원소 ${elements.length}개. 오른쪽 추출 원소에 저장되었습니다.${tail}`;
         }
       }
       renderDecomposeElements(elements);
-      if (elements.length > 0) {
-        clearPot();
-        await syncMaterialsFromServer();
-      }
+      clearPot();
+      await syncMaterialsFromServer();
     } catch {
       if (decomposeHint) decomposeHint.textContent = '네트워크 오류로 분해에 실패했어요.';
     } finally {
