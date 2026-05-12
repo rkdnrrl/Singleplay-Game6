@@ -19,6 +19,47 @@ body {
   overflow: hidden;
 }
 
+/* ── 상단 코인 (게임월드 동기화) ───────────────────────── */
+.alchemy-coin-hud {
+  position: fixed;
+  top: max(0.45rem, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 35;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.32rem 0.75rem 0.36rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(251, 191, 36, 0.38);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(10px);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.alchemy-coin-hud__icon {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.alchemy-coin-hud__label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(226, 232, 240, 0.72);
+  letter-spacing: 0.04em;
+}
+
+.alchemy-coin-hud__value {
+  font-weight: 700;
+  color: #fde047;
+  min-width: 2.5ch;
+  text-align: right;
+  letter-spacing: 0.02em;
+}
+
 /* ── 왼쪽 위 재료 (대장간 보관함 톤) ───────────────────────── */
 .alchemy-dock {
   position: fixed;
@@ -283,6 +324,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: 1rem;
+  padding-top: max(1rem, 2.85rem);
   padding-left: max(1rem, min(48vw, 252px));
   padding-right: max(1rem, min(48vw, 252px));
 }
@@ -813,6 +855,7 @@ body {
   }
 
   .stage {
+    padding-top: max(0.75rem, 3rem);
     padding-left: max(0.5rem, min(54vw, 210px));
     padding-right: max(0.5rem, min(54vw, 210px));
     align-items: flex-end;

@@ -7,6 +7,12 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <div class="alchemy-coin-hud" id="alchemyCoinHud" aria-live="polite">
+    <span class="alchemy-coin-hud__icon" aria-hidden="true">🪙</span>
+    <span class="alchemy-coin-hud__label">코인</span>
+    <span class="alchemy-coin-hud__value" id="alchemyCoinAmount">—</span>
+  </div>
+
   <aside class="alchemy-dock" id="alchemyDock" aria-label="재료·장비·영혼 보관함">
     <div class="alchemy-dock__head">
       <h2 class="alchemy-dock__title">📦 보관함 <span id="matBadge" class="alchemy-dock__badge">0</span></h2>

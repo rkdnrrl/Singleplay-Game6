@@ -31,15 +31,70 @@
   const composePreview = document.getElementById('composePreview');
   const composeForgeOverlayEl = document.getElementById('composeForgeOverlay');
   const composeForgeOverlayTimerEl = document.getElementById('composeForgeOverlayTimer');
+  const alchemyCoinAmountEl = document.getElementById('alchemyCoinAmount');
 
   const CLASS_BOILING = 'cauldron--boiling';
   let decomposeInFlight = false;
   let composeInFlight = false;
   let composeForgeOverlayCountdownId = 0;
+  /** @type {number|null|undefined} undefined=미로딩, null=실패 */
+  let serverCoinsBalance = undefined;
   /** 가마솥 안 레퍼런스 (왼쪽 보관함 + 오른쪽 추출 원소) */
   let pot = [];
   /** 분해로 쌓인 원소 — 서버 `/api/alchemy/stash` 기준(로컬 보관함 키와 분리) */
   let elementStash = [];
+
+  function renderCoinHud() {
+    if (!alchemyCoinAmountEl) return;
+    if (!alpToken || !platformApi) {
+      serverCoinsBalance = undefined;
+      alchemyCoinAmountEl.textContent = '—';
+      alchemyCoinAmountEl.title = '게임월드에서 이 게임을 열면 코인이 표시됩니다.';
+      return;
+    }
+    if (serverCoinsBalance === undefined) {
+      alchemyCoinAmountEl.textContent = '…';
+      alchemyCoinAmountEl.title = '불러오는 중…';
+      return;
+    }
+    if (serverCoinsBalance === null || !Number.isFinite(serverCoinsBalance)) {
+      alchemyCoinAmountEl.textContent = '—';
+      alchemyCoinAmountEl.title = '코인을 불러오지 못했습니다.';
+      return;
+    }
+    alchemyCoinAmountEl.textContent = Math.floor(serverCoinsBalance).toLocaleString();
+    alchemyCoinAmountEl.title = '게임월드 보유 코인';
+  }
+
+  async function refreshServerCoins() {
+    if (!alpToken || !platformApi) {
+      serverCoinsBalance = undefined;
+      renderCoinHud();
+      return;
+    }
+    try {
+      const r = await fetch(`${platformApi}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${alpToken}` },
+      });
+      const text = await r.text();
+      let data = null;
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = null;
+        }
+      }
+      if (r.ok && data && data.user && typeof data.user.coins === 'number') {
+        serverCoinsBalance = data.user.coins;
+      } else {
+        serverCoinsBalance = null;
+      }
+    } catch {
+      serverCoinsBalance = null;
+    }
+    renderCoinHud();
+  }
 
   function updateDecomposeButton() {
     if (!btnDecompose) return;
@@ -191,6 +246,7 @@
     } catch {
       if (decomposeHint) decomposeHint.textContent = '네트워크 오류로 분해에 실패했어요.';
     } finally {
+      void refreshServerCoins();
       decomposeInFlight = false;
       if (cauldron) {
         cauldron.classList.toggle(CLASS_BOILING, wasBoiling);
@@ -549,13 +605,37 @@
   }
 
   async function syncMaterialsFromServer() {
-    if (!alpToken || !platformApi) return;
+    if (!alpToken || !platformApi) {
+      serverCoinsBalance = undefined;
+      renderCoinHud();
+      return;
+    }
     try {
       const headers = { Authorization: `Bearer ${alpToken}` };
-      const [invRes, stashRes] = await Promise.all([
+      const [invRes, stashRes, meRes] = await Promise.all([
         fetch(`${platformApi}/api/catches/inventory?limit=200`, { headers }),
         fetch(`${platformApi}/api/alchemy/stash`, { headers }),
+        fetch(`${platformApi}/api/auth/me`, { headers }),
       ]);
+
+      if (meRes.ok) {
+        const mt = await meRes.text();
+        let me = null;
+        try {
+          me = mt ? JSON.parse(mt) : null;
+        } catch {
+          me = null;
+        }
+        if (me && me.user && typeof me.user.coins === 'number') {
+          serverCoinsBalance = me.user.coins;
+        } else {
+          serverCoinsBalance = null;
+        }
+      } else {
+        serverCoinsBalance = null;
+      }
+      renderCoinHud();
+
       if (!invRes.ok) return;
       const invText = await invRes.text();
       let invData = null;
@@ -613,7 +693,8 @@
       renderElementStashList();
       syncPotWithMaterials();
     } catch {
-      /* ignore */
+      serverCoinsBalance = null;
+      renderCoinHud();
     }
   }
 
@@ -972,5 +1053,6 @@
   syncAriaBoiling();
   updateDecomposeButton();
 
+  renderCoinHud();
   void syncMaterialsFromServer();
 })();
