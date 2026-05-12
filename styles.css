@@ -430,6 +430,26 @@ body {
   gap: 0.45rem;
 }
 
+.alchemy-vapor-warn {
+  max-width: min(92vw, 28rem);
+  margin: 0.35rem auto 0;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: rgba(254, 243, 199, 0.92);
+  background: rgba(120, 53, 15, 0.35);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: 10px;
+  text-align: center;
+}
+
+.alchemy-vapor-warn code {
+  font-size: 0.85em;
+  padding: 0.05em 0.25em;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
 .alchemy-compose-btn {
   border: 1px solid rgba(251, 191, 36, 0.5);
   background: linear-gradient(180deg, rgba(180, 83, 9, 0.4), rgba(120, 53, 15, 0.35));

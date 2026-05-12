@@ -95,6 +95,22 @@
     renderCoinHud();
   }
 
+  /** 서버 `looksLikeAlchemyComposeCatchName` 와 동일 — 조합 산출물 이름(「식」(Cu)… 끝) */
+  function looksLikeAlchemyComposeCatchName(name) {
+    const s = String(name != null ? name : '')
+      .trim()
+      .replace(/\s+/g, ' ');
+    if (!/\([A-Za-z]{1,3}\)/.test(s)) return false;
+    return /「[^」]{1,48}」(\([A-Za-z]{1,3}\))+$/.test(s);
+  }
+
+  function potHasComposeVaporRisk() {
+    return pot.some((m) => {
+      if (!m || isAlchemyElementMaterial(m)) return false;
+      return looksLikeAlchemyComposeCatchName(m.name);
+    });
+  }
+
   function updateDecomposeButton() {
     if (!btnDecompose) return;
     const hasLocalOnly = pot.some((m) => {
@@ -127,8 +143,13 @@
     } else if (composeInFlight) {
       btnDecompose.title = '조합 처리 중에는 분해할 수 없습니다.';
     } else {
-      btnDecompose.title =
+      let base =
         '재료 이름·종류(낚시·장비)에 맞춰 원소를 추출하고, 서버에서 재료를 소모합니다. (즉시 처리)';
+      if (potHasComposeVaporRisk()) {
+        base +=
+          ' 가마솥에 조합 산출물이 있으면 분해 시 원소가 증발할 수 있어 적립이 줄거나 없을 수 있습니다.';
+      }
+      btnDecompose.title = base;
     }
     updateComposeButton();
   }
@@ -211,7 +232,11 @@
     updateDecomposeButton();
     if (composePanel) composePanel.hidden = true;
     if (decomposePanel) decomposePanel.hidden = false;
-    if (decomposeHint) decomposeHint.textContent = '원소를 계산하는 중…';
+    if (decomposeHint) {
+      decomposeHint.textContent = potHasComposeVaporRisk()
+        ? '원소를 계산하는 중… (조합 산출물은 증발할 수 있어요.)'
+        : '원소를 계산하는 중…';
+    }
     renderDecomposeElements([]);
 
     const slots = buildDecomposeSlotsFromPot();
