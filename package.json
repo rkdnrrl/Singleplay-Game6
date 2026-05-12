@@ -1,0 +1,12 @@
+{
+  "name": "alchemy-cauldron",
+  "version": "1.0.0",
+  "description": "연금술 — 가마솥 (Singleplay-Game6)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
