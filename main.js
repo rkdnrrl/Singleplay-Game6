@@ -127,7 +127,8 @@
     } else if (composeInFlight) {
       btnDecompose.title = '조합 처리 중에는 분해할 수 없습니다.';
     } else {
-      btnDecompose.title = 'AI가 재료 이름을 분석해 주기율표 원소를 제안하고, 서버에서 재료를 소모합니다.';
+      btnDecompose.title =
+        '재료 이름·종류(낚시·장비)에 맞춰 원소를 추출하고, 서버에서 재료를 소모합니다. (즉시 처리)';
     }
     updateComposeButton();
   }
@@ -210,7 +211,7 @@
     updateDecomposeButton();
     if (composePanel) composePanel.hidden = true;
     if (decomposePanel) decomposePanel.hidden = false;
-    if (decomposeHint) decomposeHint.textContent = 'AI가 재료 이름을 분석하는 중…';
+    if (decomposeHint) decomposeHint.textContent = '원소를 계산하는 중…';
     renderDecomposeElements([]);
 
     const slots = buildDecomposeSlotsFromPot();
