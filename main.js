@@ -113,10 +113,11 @@
           decomposeHint.textContent =
             '주기율표에 맞는 원소가 추출되지 않았어요. 다른 재료를 넣어 보세요.';
         } else {
-          decomposeHint.textContent = `입력: ${names.length}종 이름 → 원소 ${elements.length}개 (IUPAC 기호 검증됨)`;
+          decomposeHint.textContent = `입력: ${names.length}종 이름 → 원소 ${elements.length}개. 왼쪽 연금술 보관함에 저장되었습니다.`;
         }
       }
       renderDecomposeElements(elements);
+      if (elements.length > 0) await syncMaterialsFromServer();
     } catch {
       if (decomposeHint) decomposeHint.textContent = '네트워크 오류로 분해에 실패했어요.';
     } finally {
@@ -249,6 +250,10 @@
     return Boolean(m && (m.kind === 'equipment' || m.equipmentId != null));
   }
 
+  function isAlchemyElementMaterial(m) {
+    return Boolean(m && m.kind === 'alchemy_element');
+  }
+
   function loadMaterialsFromStore() {
     try {
       const raw = localStorage.getItem(FORGE_MATERIALS_KEY);
@@ -270,20 +275,22 @@
   async function syncMaterialsFromServer() {
     if (!alpToken || !platformApi) return;
     try {
-      const res = await fetch(`${platformApi}/api/catches/inventory?limit=200`, {
-        headers: { Authorization: `Bearer ${alpToken}` },
-      });
-      if (!res.ok) return;
-      const text = await res.text();
-      let data = null;
-      if (text) {
+      const headers = { Authorization: `Bearer ${alpToken}` };
+      const [invRes, stashRes] = await Promise.all([
+        fetch(`${platformApi}/api/catches/inventory?limit=200`, { headers }),
+        fetch(`${platformApi}/api/alchemy/stash`, { headers }),
+      ]);
+      if (!invRes.ok) return;
+      const invText = await invRes.text();
+      let invData = null;
+      if (invText) {
         try {
-          data = JSON.parse(text);
+          invData = JSON.parse(invText);
         } catch {
-          data = null;
+          invData = null;
         }
       }
-      const catches = data && Array.isArray(data.catches) ? data.catches : [];
+      const catches = invData && Array.isArray(invData.catches) ? invData.catches : [];
       const serverItems = catches
         .filter((c) => c && c.id != null && String(c.id).trim() !== '')
         .map((c) => ({
@@ -297,9 +304,48 @@
           pixelArt: c.pixelArt || null,
         }));
 
+      let stashItems = [];
+      if (stashRes.ok) {
+        const stText = await stashRes.text();
+        let stData = null;
+        if (stText) {
+          try {
+            stData = JSON.parse(stText);
+          } catch {
+            stData = null;
+          }
+        }
+        const els = stData && Array.isArray(stData.elements) ? stData.elements : [];
+        stashItems = els
+          .filter((e) => e && e.symbol && Number(e.count) > 0)
+          .map((e) => {
+            const sym = String(e.symbol).trim();
+            const nameKo = e.nameKo != null ? String(e.nameKo).trim() : '';
+            const display = nameKo ? `${nameKo} (${sym})` : sym;
+            const cnt = Math.max(1, Math.floor(Number(e.count)) || 1);
+            return {
+              uid: `alchemy-el-${sym}`,
+              kind: 'alchemy_element',
+              name: display,
+              rarity: 'common',
+              serverId: `alchemy-stash:${sym}`,
+              stackCount: cnt,
+              elementSymbol: sym,
+              atomicNumber: e.atomicNumber != null ? Number(e.atomicNumber) : null,
+              pixelArt: null,
+            };
+          });
+      }
+
       const current = loadMaterialsFromStore();
-      const localOnly = current.filter((x) => x && (!x.serverId || String(x.serverId).trim() === ''));
-      const items = serverItems.concat(localOnly);
+      const localOnly = current.filter(
+        (x) =>
+          x &&
+          (!x.serverId || String(x.serverId).trim() === '') &&
+          x.kind !== 'alchemy_element' &&
+          !String(x.uid || '').startsWith('alchemy-el-'),
+      );
+      const items = serverItems.concat(stashItems).concat(localOnly);
       localStorage.setItem(
         FORGE_MATERIALS_KEY,
         JSON.stringify({ v: 3, items, updatedAt: Date.now(), source: 'alchemy-direct' }),
@@ -361,34 +407,52 @@
 
     if (materials.length === 0) {
       materialListEl.innerHTML =
-        '<p class="alchemy-dock__hint" style="margin:0.5rem 0;text-align:center">보관함이 비어 있어요. 우주 낚시에서 잡은 뒤, 여기서 새로고침 하거나 게임월드에서 이 연금술을 열면 동기화돼요.</p>';
+        '<p class="alchemy-dock__hint" style="margin:0.5rem 0;text-align:center">보관함이 비어 있어요. 우주 낚시에서 잡은 뒤 동기화하거나, 토큰이 있으면 분해로 얻은 원소도 여기에 쌓입니다.</p>';
       if (materialHint) {
-        materialHint.textContent = alpToken && platformApi ? '서버 동기화됨 · 재료가 없습니다.' : '?token= 없으면 로컬 보관함만 표시됩니다.';
+        materialHint.textContent =
+          alpToken && platformApi
+            ? '서버 동기화됨 · 낚시 재료와 분해로 쌓인 원소가 함께 표시됩니다.'
+            : '?token= 없으면 로컬 보관함만 표시됩니다.';
       }
       updateDecomposeButton();
       return;
     }
 
     if (materialHint) {
-      materialHint.textContent = '끌어서 가마솥에 넣으세요. (칩 클릭으로 빼기)';
+      materialHint.textContent = '끌어서 가마솥에 넣으세요. (낚시 재료·분해 원소 · 칩 클릭으로 빼기)';
     }
 
     materialListEl.innerHTML = '';
     materials.forEach((m) => {
       const row = document.createElement('div');
-      row.className = `alchemy-mat rarity-${rarityClass(m.rarity)}${isEquipmentMaterial(m) ? ' inv-item--equipment' : ''}${inPot.has(m.uid) ? ' alchemy-mat--in-pot' : ''}`;
+      row.className = `alchemy-mat rarity-${rarityClass(m.rarity)}${isEquipmentMaterial(m) ? ' inv-item--equipment' : ''}${isAlchemyElementMaterial(m) ? ' alchemy-mat--element' : ''}${inPot.has(m.uid) ? ' alchemy-mat--in-pot' : ''}`;
       row.dataset.uid = m.uid;
       row.draggable = true;
 
       const thumb = document.createElement('div');
       thumb.className = 'alchemy-mat__thumb';
-      mountMaterialThumb(thumb, m.pixelArt, matEmoji(m.name), 40, 40);
+      mountMaterialThumb(
+        thumb,
+        m.pixelArt,
+        isAlchemyElementMaterial(m) ? '🧪' : matEmoji(m.name),
+        40,
+        40,
+      );
       row.appendChild(thumb);
 
       const nameEl = document.createElement('span');
       nameEl.className = 'alchemy-mat__name';
       nameEl.textContent = m.name != null ? String(m.name) : '';
       row.appendChild(nameEl);
+
+      const stackN = isAlchemyElementMaterial(m) && m.stackCount != null ? Math.floor(Number(m.stackCount)) : 0;
+      if (isAlchemyElementMaterial(m) && stackN >= 1) {
+        const stackEl = document.createElement('span');
+        stackEl.className = 'alchemy-mat__stack';
+        stackEl.textContent = `×${stackN}`;
+        stackEl.title = `보유 ${stackN}`;
+        row.appendChild(stackEl);
+      }
 
       row.addEventListener('dragstart', (e) => {
         if (!e.dataTransfer) return;

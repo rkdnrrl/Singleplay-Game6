@@ -160,6 +160,22 @@ body {
   color: #e2e8f0;
 }
 
+.alchemy-mat__stack {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #a5f3fc;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 999px;
+  padding: 0.12rem 0.45rem;
+  line-height: 1.2;
+}
+
+.alchemy-mat--element {
+  border-left-color: #22d3ee;
+}
+
 .alchemy-mat.rarity-common {
   --rarity-line: #94a3b8;
 }
