@@ -25,9 +25,14 @@
   const decomposePanel = document.getElementById('decomposePanel');
   const decomposeHint = document.getElementById('decomposeHint');
   const decomposeElements = document.getElementById('decomposeElements');
+  const btnCompose = document.getElementById('btnCompose');
+  const composePanel = document.getElementById('composePanel');
+  const composeHint = document.getElementById('composeHint');
+  const composePreview = document.getElementById('composePreview');
 
   const CLASS_BOILING = 'cauldron--boiling';
   let decomposeInFlight = false;
+  let composeInFlight = false;
   /** 가마솥 안 레퍼런스 (왼쪽 보관함 + 오른쪽 추출 원소) */
   let pot = [];
   /** 분해로 쌓인 원소 — 서버 `/api/alchemy/stash` 기준(로컬 보관함 키와 분리) */
@@ -49,6 +54,7 @@
       Boolean(alpToken && platformApi) &&
       pot.length > 0 &&
       !decomposeInFlight &&
+      !composeInFlight &&
       !hasLocalOnly;
     btnDecompose.disabled = !can;
     if (!alpToken || !platformApi) {
@@ -57,8 +63,39 @@
       btnDecompose.title = '가마솥에 재료를 넣은 뒤 누르세요.';
     } else if (hasLocalOnly) {
       btnDecompose.title = '서버에 없는 재료만 있으면 분해할 수 없습니다. 동기화된 재료·장비·추출 원소를 넣으세요.';
+    } else if (composeInFlight) {
+      btnDecompose.title = '조합 처리 중에는 분해할 수 없습니다.';
     } else {
       btnDecompose.title = 'AI가 재료 이름을 분석해 주기율표 원소를 제안하고, 서버에서 재료를 소모합니다.';
+    }
+    updateComposeButton();
+  }
+
+  function potIsElementsOnly() {
+    return pot.length > 0 && pot.every((m) => m && isAlchemyElementMaterial(m));
+  }
+
+  function updateComposeButton() {
+    if (!btnCompose) return;
+    const can =
+      Boolean(alpToken && platformApi) &&
+      pot.length >= 2 &&
+      potIsElementsOnly() &&
+      !composeInFlight &&
+      !decomposeInFlight;
+    btnCompose.disabled = !can;
+    if (!alpToken || !platformApi) {
+      btnCompose.title = '게임월드에서 이 게임을 열면 토큰이 붙어 조합을 호출할 수 있어요.';
+    } else if (pot.length < 2) {
+      btnCompose.title = '추출 원소를 두 개 이상 가마솥에 넣으세요.';
+    } else if (!potIsElementsOnly()) {
+      btnCompose.title = '조합은 추출 원소만 섞을 수 있어요. (낚시 재료·장비는 분해에 사용)';
+    } else if (composeInFlight) {
+      btnCompose.title = '조합 처리 중…';
+    } else if (decomposeInFlight) {
+      btnCompose.title = '분해 처리 중에는 조합할 수 없습니다.';
+    } else {
+      btnCompose.title = '원소들을 합쳐 새로운 산출물을 만듭니다. 왼쪽 보관함에 들어갑니다.';
     }
   }
 
@@ -96,7 +133,7 @@
   }
 
   async function runDecompose() {
-    if (!alpToken || !platformApi || pot.length === 0 || decomposeInFlight) return;
+    if (!alpToken || !platformApi || pot.length === 0 || decomposeInFlight || composeInFlight) return;
     const wasBoiling = Boolean(cauldron && cauldron.classList.contains(CLASS_BOILING));
     decomposeInFlight = true;
     if (cauldron) {
@@ -104,6 +141,7 @@
       syncAriaBoiling();
     }
     updateDecomposeButton();
+    if (composePanel) composePanel.hidden = true;
     if (decomposePanel) decomposePanel.hidden = false;
     if (decomposeHint) decomposeHint.textContent = 'AI가 재료 이름을 분석하는 중…';
     renderDecomposeElements([]);
@@ -159,6 +197,86 @@
     }
   }
 
+
+  function renderComposePreview(compound) {
+    if (!composePreview) return;
+    composePreview.innerHTML = '';
+    if (!compound) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'alchemy-compose-preview';
+    const th = document.createElement('div');
+    th.className = 'alchemy-compose-preview__thumb';
+    const em = String(compound.itemEmoji || '⚗').trim().slice(0, 4);
+    mountMaterialThumb(th, compound.pixelArt, em, 56, 56);
+    const text = document.createElement('div');
+    text.className = 'alchemy-compose-preview__text';
+    const title = document.createElement('div');
+    title.className = 'alchemy-compose-preview__title';
+    title.textContent = compound.itemName != null ? String(compound.itemName) : '';
+    const sub = document.createElement('div');
+    sub.className = 'alchemy-compose-preview__sub';
+    const r = compound.rarity != null ? String(compound.rarity) : 'common';
+    const coin = compound.coinValue != null ? Number(compound.coinValue) : 0;
+    sub.textContent = `${r} · ${compound.itemType || 'artifact'} · 판매 시 코인 ${coin}`;
+    text.appendChild(title);
+    text.appendChild(sub);
+    wrap.appendChild(th);
+    wrap.appendChild(text);
+    composePreview.appendChild(wrap);
+  }
+
+  async function runCompose() {
+    if (!alpToken || !platformApi || pot.length < 2 || !potIsElementsOnly() || composeInFlight || decomposeInFlight) {
+      return;
+    }
+    composeInFlight = true;
+    updateDecomposeButton();
+    if (decomposePanel) decomposePanel.hidden = true;
+    if (composePanel) composePanel.hidden = false;
+    if (composeHint) composeHint.textContent = '원소를 합성하는 중…';
+    if (composePreview) composePreview.innerHTML = '';
+
+    const slots = buildDecomposeSlotsFromPot();
+    try {
+      const res = await fetch(`${platformApi}/api/alchemy/compose`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${alpToken}`,
+        },
+        body: JSON.stringify({ slots }),
+      });
+      const text = await res.text();
+      let data = null;
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = null;
+        }
+      }
+      if (!res.ok) {
+        const msg = data && data.error && data.error.message ? String(data.error.message) : `요청 실패 (${res.status})`;
+        if (composeHint) composeHint.textContent = msg;
+        return;
+      }
+      const compound = data && data.compound ? data.compound : null;
+      renderComposePreview(compound);
+      const rationale = data && data.rationaleKo ? String(data.rationaleKo) : '';
+      const form = data && data.formulaStyleKo ? String(data.formulaStyleKo) : '';
+      if (composeHint) {
+        const extra = form ? ` · (${form})` : '';
+        composeHint.textContent = `${rationale}${extra} — 왼쪽 보관함에 저장되었습니다.`;
+      }
+      clearPot();
+      await syncMaterialsFromServer();
+    } catch {
+      if (composeHint) composeHint.textContent = '네트워크 오류로 조합에 실패했어요.';
+    } finally {
+      composeInFlight = false;
+      updateDecomposeButton();
+    }
+  }
 
   const MAT_EMOJI_POOL = [
     '🐟', '🐠', '🐡', '🪸', '🦑', '🪼', '🐙', '✨', '🌌', '💎', '🔮', '🛸',
@@ -744,6 +862,10 @@
 
   if (btnDecompose) {
     btnDecompose.addEventListener('click', () => void runDecompose());
+  }
+
+  if (btnCompose) {
+    btnCompose.addEventListener('click', () => void runCompose());
   }
 
   window.addEventListener('storage', (ev) => {

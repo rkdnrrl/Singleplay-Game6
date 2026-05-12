@@ -380,6 +380,78 @@ body {
   cursor: not-allowed;
 }
 
+.alchemy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+}
+
+.alchemy-compose-btn {
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  background: linear-gradient(180deg, rgba(180, 83, 9, 0.4), rgba(120, 53, 15, 0.35));
+  color: #fef3c7;
+  border-radius: 999px;
+  padding: 0.4rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.alchemy-compose-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.alchemy-compose-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.alchemy-result--compose {
+  border-color: rgba(251, 191, 36, 0.28);
+}
+
+.alchemy-compose-preview-host {
+  min-height: 3.5rem;
+}
+
+.alchemy-compose-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.alchemy-compose-preview__thumb {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #08081a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.alchemy-compose-preview__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.alchemy-compose-preview__title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #fde68a;
+  line-height: 1.25;
+}
+
+.alchemy-compose-preview__sub {
+  margin-top: 0.2rem;
+  font-size: 0.62rem;
+  color: rgba(253, 230, 138, 0.75);
+}
+
 .alchemy-result {
   width: min(96vw, 420px);
   margin-top: 0.25rem;
