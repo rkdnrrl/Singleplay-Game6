@@ -97,7 +97,12 @@
 
   async function runDecompose() {
     if (!alpToken || !platformApi || pot.length === 0 || decomposeInFlight) return;
+    const wasBoiling = Boolean(cauldron && cauldron.classList.contains(CLASS_BOILING));
     decomposeInFlight = true;
+    if (cauldron) {
+      cauldron.classList.add(CLASS_BOILING);
+      syncAriaBoiling();
+    }
     updateDecomposeButton();
     if (decomposePanel) decomposePanel.hidden = false;
     if (decomposeHint) decomposeHint.textContent = 'AI가 재료 이름을 분석하는 중…';
@@ -146,6 +151,10 @@
       if (decomposeHint) decomposeHint.textContent = '네트워크 오류로 분해에 실패했어요.';
     } finally {
       decomposeInFlight = false;
+      if (cauldron) {
+        cauldron.classList.toggle(CLASS_BOILING, wasBoiling);
+        syncAriaBoiling();
+      }
       updateDecomposeButton();
     }
   }
